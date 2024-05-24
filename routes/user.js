@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
-const { JWT_SECRET } = require("../config");
+const JWT_SECRET = process.env.JWT_SECRET;
 const zod  = require("zod");
 
 const userSchema = zod.object({
@@ -18,7 +18,7 @@ router.post("/createuser", async(req,res) => {
         })
     }
 
-    
+
 });
 
 

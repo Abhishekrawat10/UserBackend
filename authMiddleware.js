@@ -17,6 +17,8 @@ const authMiddleware = (req, res, next) => {
         message: "Unauthorized User",
       });
     }
+    // console.log(decoded.username)
+    req.User = decoded.username
     next();
   } catch (err) {
     return res.status(500).json({

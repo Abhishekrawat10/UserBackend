@@ -31,8 +31,32 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const docSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    content: {
+      type: String,
+      default: "",
+    },
+    author: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
 const User = mongoose.model("User", userSchema);
+const Doc = mongoose.model("Doc", docSchema);
 
 module.exports = {
   User,
+  Doc
 };

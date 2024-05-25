@@ -5,7 +5,7 @@ dotenv.config();
 const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET;
 const zod = require("zod");
-const { User } = require("../db");
+const { User, Doc } = require("../db");
 const bcrypt = require("bcrypt");
 const authMiddleware = require("../authMiddleware");
 const saltRounds = 10;
@@ -55,13 +55,21 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.post("/create-user", async (req, res) => {
+router.post("/create-user", authMiddleware, async (req, res) => {
   const { success } = userSchema.safeParse(req.body);
+  const user = req.User;
 
   if (!success) {
     return res.status(400).json({
       error: "Wrong Credentials",
       message: "Enter the credentials Properly",
+    });
+  }
+
+  const currUser = await User.findOne({ username: user });
+  if (currUser.role !== "Super Admin") {
+    return res.status(403).json({
+      message: "You can't create Users",
     });
   }
 
@@ -93,7 +101,16 @@ router.post("/create-user", async (req, res) => {
 });
 
 router.post("/assing-role", authMiddleware, async (req, res) => {
+  const user = req.User;
   try {
+    const currUser = await User.findOne({ username: user });
+
+    if (currUser.role !== "Super Admin") {
+      return res.status(403).json({
+        message: "You can't Assign the Role",
+      });
+    }
+
     const { username, role } = req.body;
     const findUser = await User.findOne({ username });
     if (!findUser) {
@@ -109,6 +126,110 @@ router.post("/assing-role", authMiddleware, async (req, res) => {
 
     return res.status(200).json({
       message: "Role has been assined",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+    });
+  }
+});
+
+router.post("/create-doc", authMiddleware, async (req, res) => {
+  const { title, content } = req.body;
+  const author = req.User;
+
+  try {
+    const findUser = await User.findOne({ username: author });
+    // console.log(findUser);
+
+    if (findUser.role === "Super Admin" || findUser.role === "Admin") {
+      const findDoc = await Doc.findOne({ title });
+      if (findDoc) {
+        return res.status(411).json({
+          message: "Doc already Exist witht this name",
+        });
+      }
+      await Doc.create({
+        title,
+        content,
+        author: findUser._id,
+      });
+
+      return res.status(201).json({
+        message: "Doc Created Successfully",
+      });
+    } else {
+      return res.status(403).json({
+        message: "You can't Create a doc",
+      });
+    }
+  } catch (err) {
+    return res.status(500).json({
+      message: "Internal Server Error",
+    });
+  }
+});
+
+router.get("/doc/:docName", authMiddleware, async (req, res) => {
+  const docName = req.params.docName;
+  const username = req.User;
+  try {
+    const findDoc = await Doc.findOne({ title: docName });
+
+    if (!findDoc) {
+      return res.status(400).json({
+        message: "Doc don't exist",
+      });
+    }
+
+    // Here docAccess 0 means that the user can only view the doc can't edit the doc sending it here only so that on frontend we can disable his edititng on docs
+    let docAccess = 0;
+    const findUser = await User.findOne({ username });
+
+    if (findUser.role === "Super Admin" || findUser.role === "Admin") {
+      // docAcess 1 means can edit and udpate the doc
+      docAccess = 1;
+    }
+
+    return res.status(200).json({
+      findDoc,
+      docAccess,
+      message: "Here is your Doc",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      err,
+      messsage: "Internal Server Error",
+    });
+  }
+});
+
+router.post("/update-doc/:docName", authMiddleware, async (req, res) => {
+  const docName = req.params.docName;
+  const username = req.User;
+  try {
+    const findUser = await User.findOne({
+      username,
+    });
+
+    if (findUser.role !== "Super Admin" && findUser.role !== "Admin") {
+      return res.status(403).json({
+        message: "Can't Edit the doc",
+      });
+    }
+
+    const newDoc = await Doc.findOneAndUpdate({ title: docName }, req.body, {
+      new: true,
+    });
+
+    if (!newDoc) {
+      return res.status(404).json({
+        message: "Doc not found",
+      });
+    }
+    return res.status(200).json({
+      newDoc,
+      message: "Your Doc Updated Succesffully",
     });
   } catch (err) {
     return res.status(500).json({
